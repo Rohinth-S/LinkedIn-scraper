@@ -122,15 +122,18 @@ backend:
 
   - task: "LLM Query Parsing Service"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented LLMService class supporting OpenAI, Claude, and Gemini for natural language query parsing. Converts queries into structured parameters."
+      - working: true
+        agent: "testing"
+        comment: "Tested the query parsing endpoint successfully. The API correctly handles different LLM providers and returns structured query parameters. The endpoint also properly validates input and rejects invalid LLM providers."
 
   - task: "LinkedIn Scraper with Playwright"
     implemented: true
