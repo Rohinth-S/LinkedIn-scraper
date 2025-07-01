@@ -4,11 +4,20 @@ import json
 import time
 import uuid
 import sys
+import logging
+import asyncio
 from typing import Dict, Any, Optional
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Configuration
 BASE_URL = "https://8dd4d21b-3505-45a0-a426-68ec8b1e7f48.preview.emergentagent.com/api"
-TIMEOUT = 10  # seconds
+TIMEOUT = 30  # seconds - increased for browser initialization tests
 
 # Test data
 TEST_CREDENTIALS = {
