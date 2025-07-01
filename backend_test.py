@@ -556,6 +556,12 @@ def main():
     test_root_endpoint()
     test_credentials_endpoints()
     test_parse_query_endpoint()
+    
+    # Critical tests for Playwright browser functionality
+    test_playwright_environment()
+    test_browser_fallback()
+    
+    # Additional tests
     test_scraping_endpoints()
     test_export_csv_endpoint()
     
