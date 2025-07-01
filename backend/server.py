@@ -233,17 +233,31 @@ class LinkedInScraper:
         """Login to LinkedIn with provided credentials"""
         playwright = await async_playwright().start()
         
-        # Launch browser with stealth settings
-        self.browser = await playwright.chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox',
-                '--disable-bounding-box-limits',
-                '--disable-dev-shm-usage',
-                '--disable-web-security',
-                '--disable-features=VizDisplayCompositor'
-            ]
-        )
+        # Try different browser options for better compatibility
+        try:
+            # First try chromium
+            self.browser = await playwright.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-bounding-box-limits',
+                    '--disable-dev-shm-usage',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-gpu'
+                ]
+            )
+        except Exception as e:
+            logging.warning(f"Chromium launch failed: {str(e)}, trying Firefox...")
+            try:
+                # Fallback to Firefox
+                self.browser = await playwright.firefox.launch(
+                    headless=True,
+                    args=['--no-sandbox']
+                )
+            except Exception as e2:
+                logging.error(f"Firefox launch failed: {str(e2)}")
+                raise Exception(f"Failed to launch browser. Chromium error: {str(e)}, Firefox error: {str(e2)}")
         
         # Create context with realistic user agent
         self.context = await self.browser.new_context(
