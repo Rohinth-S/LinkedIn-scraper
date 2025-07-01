@@ -152,15 +152,18 @@ backend:
 
   - task: "Credentials Management API"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented secure credential storage and retrieval for LinkedIn, OpenAI, Claude, Gemini, and Hunter.io APIs."
+      - working: true
+        agent: "testing"
+        comment: "Tested the credentials management endpoints successfully. The API correctly saves and retrieves credentials, and properly masks sensitive information like passwords when retrieving credentials."
 
   - task: "CSV Export Functionality"
     implemented: true
