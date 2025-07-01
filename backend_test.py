@@ -254,15 +254,15 @@ def test_scraping_endpoints():
                 
                 # Test getting a non-existent job
                 fake_id = str(uuid.uuid4())
-                success, response, message = make_request("get", f"/scraping-jobs/{fake_id}")
+                response = requests.get(f"{BASE_URL}/scraping-jobs/{fake_id}", timeout=TIMEOUT)
                 
-                if response and response.status_code in [404, 500]:
+                if response.status_code in [404, 500]:
                     # Accept either 404 (not found) or 500 (server error) as valid responses for a non-existent job
                     print_result("Get Non-existent Job", True, 
                                  f"Correctly handled non-existent job with status {response.status_code}")
                 else:
                     print_result("Get Non-existent Job", False, 
-                                 "Unexpected response for non-existent job", response)
+                                 f"Expected 404 or 500 status, got {response.status_code}", response)
         else:
             print_result("List Scraping Jobs", False, 
                          "Expected a list of jobs but got something else", response)
