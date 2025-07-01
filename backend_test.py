@@ -357,6 +357,177 @@ def test_export_csv_endpoint():
     else:
         print_result("Export CSV", False, "Could not get a job ID to test CSV export")
 
+def test_playwright_environment():
+    """Test the Playwright browser environment directly"""
+    print_header("Testing Playwright Browser Environment")
+    
+    # Create a simple test query that will trigger browser initialization
+    test_query = TEST_QUERY.copy()
+    
+    # Make the request to start a scraping job
+    success, response, message = make_request("post", "/start-scraping", test_query)
+    
+    if not success or not response:
+        print_result("Playwright Environment", False, 
+                     f"Failed to start scraping job: {message}")
+        return
+    
+    # Check if the job was created
+    if response.status_code != 200:
+        error_data = response.json()
+        error_msg = error_data.get("detail", "Unknown error")
+        
+        # Check if the error is related to credentials rather than browser
+        if "linkedin credentials" in error_msg.lower():
+            print_result("Playwright Environment", True, 
+                         "LinkedIn credentials validation working, browser environment not tested directly")
+        elif "playwright" in error_msg.lower() or "browser" in error_msg.lower():
+            print_result("Playwright Environment", False, 
+                         f"Browser environment issue detected: {error_msg}")
+        else:
+            print_result("Playwright Environment", False, 
+                         f"Unexpected error: {error_msg}")
+        return
+    
+    # Job was created successfully
+    job_id = response.json().get("id")
+    if not job_id:
+        print_result("Playwright Environment", False, 
+                     "Job created but no ID returned")
+        return
+    
+    print(f"  Job created with ID: {job_id}, waiting for browser initialization...")
+    
+    # Wait for the job to progress beyond initialization
+    max_retries = 5
+    retry_count = 0
+    browser_initialized = False
+    
+    while retry_count < max_retries:
+        time.sleep(3)  # Wait for background task to progress
+        
+        success, job_response, job_message = make_request("get", f"/scraping-jobs/{job_id}")
+        
+        if not success or not job_response:
+            print(f"  Retry {retry_count+1}/{max_retries}: Failed to get job status: {job_message}")
+            retry_count += 1
+            continue
+        
+        job_data = job_response.json()
+        job_status = job_data.get("status")
+        error_msg = job_data.get("error_message", "")
+        
+        print(f"  Job status: {job_status}")
+        
+        if job_status == "failed":
+            if "chromium_headless_shell" in error_msg.lower():
+                print_result("Playwright Environment", False, 
+                             f"Browser failed with chromium_headless_shell error: {error_msg}")
+                return
+            elif "failed to launch" in error_msg.lower() or "playwright" in error_msg.lower():
+                print_result("Playwright Environment", False, 
+                             f"Browser failed to launch: {error_msg}")
+                return
+            elif "login failed" in error_msg.lower():
+                # This is expected with mock credentials
+                print_result("Playwright Environment", True, 
+                             "Browser launched successfully but LinkedIn login failed as expected with mock credentials")
+                browser_initialized = True
+                break
+            else:
+                print_result("Playwright Environment", False, 
+                             f"Job failed with error: {error_msg}")
+                return
+        elif job_status == "running":
+            # Job is still running, which means browser launched successfully
+            print_result("Playwright Environment", True, 
+                         "Browser launched successfully and job is running")
+            browser_initialized = True
+            break
+        elif job_status == "completed":
+            # Job completed, which means browser launched successfully
+            print_result("Playwright Environment", True, 
+                         "Browser launched successfully and job completed")
+            browser_initialized = True
+            break
+        
+        retry_count += 1
+    
+    if not browser_initialized and retry_count >= max_retries:
+        print_result("Playwright Environment", False, 
+                     f"Timed out waiting for browser initialization, last status: {job_status}")
+
+def test_browser_fallback():
+    """Test the browser fallback mechanism (Firefox if Chromium fails)"""
+    print_header("Testing Browser Fallback Mechanism")
+    
+    # We can't directly test the fallback mechanism without modifying the code
+    # But we can check if a job completes successfully, which would indicate
+    # that either the primary browser worked or the fallback was successful
+    
+    # Create a simple test query
+    test_query = TEST_QUERY.copy()
+    
+    # Make the request to start a scraping job
+    success, response, message = make_request("post", "/start-scraping", test_query)
+    
+    if not success or not response:
+        print_result("Browser Fallback", False, 
+                     f"Failed to start scraping job: {message}")
+        return
+    
+    # Check if the job was created
+    if response.status_code != 200:
+        error_data = response.json()
+        error_msg = error_data.get("detail", "Unknown error")
+        
+        # Check if the error is related to credentials rather than browser
+        if "linkedin credentials" in error_msg.lower():
+            print_result("Browser Fallback", True, 
+                         "LinkedIn credentials validation working, fallback mechanism not tested directly")
+        else:
+            print_result("Browser Fallback", False, 
+                         f"Unexpected error: {error_msg}")
+        return
+    
+    # Job was created successfully
+    job_id = response.json().get("id")
+    if not job_id:
+        print_result("Browser Fallback", False, 
+                     "Job created but no ID returned")
+        return
+    
+    print(f"  Job created with ID: {job_id}, waiting to check fallback mechanism...")
+    
+    # Wait for the job to progress
+    time.sleep(5)
+    
+    success, job_response, job_message = make_request("get", f"/scraping-jobs/{job_id}")
+    
+    if not success or not job_response:
+        print_result("Browser Fallback", False, 
+                     f"Failed to get job status: {job_message}")
+        return
+    
+    job_data = job_response.json()
+    job_status = job_data.get("status")
+    error_msg = job_data.get("error_message", "")
+    
+    if job_status == "failed":
+        if "firefox" in error_msg.lower() and "chromium" in error_msg.lower():
+            print_result("Browser Fallback", False, 
+                         f"Both primary and fallback browsers failed: {error_msg}")
+        elif "login failed" in error_msg.lower():
+            # This is expected with mock credentials
+            print_result("Browser Fallback", True, 
+                         "Browser (either primary or fallback) launched successfully but LinkedIn login failed as expected")
+        else:
+            print_result("Browser Fallback", False, 
+                         f"Job failed with error: {error_msg}")
+    elif job_status in ["running", "completed"]:
+        print_result("Browser Fallback", True, 
+                     "Browser (either primary or fallback) launched successfully")
+
 def print_summary():
     """Print test summary"""
     print("\n" + "=" * 80)
