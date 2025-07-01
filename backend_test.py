@@ -281,18 +281,13 @@ def test_export_csv_endpoint():
         
         # Test exporting CSV for this job
         # We expect this to fail since the job likely hasn't completed
-        success, response, message = make_request("get", f"/export-csv/{job_id}", expected_status=400)
+        success, response, message = make_request("get", f"/export-csv/{job_id}")
         
-        if success:
+        if response and response.status_code in [400, 500]:
             print_result("Export CSV Validation", True, 
-                         "Correctly rejected CSV export for incomplete job")
+                         f"Endpoint exists and correctly rejected export with status {response.status_code}")
         else:
-            # If it returns 404 or 500, that's still acceptable for testing
-            if response and response.status_code in [404, 500]:
-                print_result("Export CSV Validation", True, 
-                             "Endpoint exists but rejected export as expected")
-            else:
-                print_result("Export CSV Validation", False, message, response)
+            print_result("Export CSV Validation", False, message, response)
     else:
         print_result("Export CSV", False, "Could not get a job ID to test CSV export")
 
