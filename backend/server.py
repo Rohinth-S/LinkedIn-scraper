@@ -235,9 +235,10 @@ class LinkedInScraper:
         
         # Try different browser options for better compatibility
         try:
-            # First try chromium
+            # First try chromium with explicit executable path
             self.browser = await playwright.chromium.launch(
                 headless=True,
+                executable_path="/pw-browsers/chromium-1169/chrome-linux/chrome",
                 args=[
                     '--no-sandbox',
                     '--disable-bounding-box-limits',
@@ -248,16 +249,31 @@ class LinkedInScraper:
                 ]
             )
         except Exception as e:
-            logging.warning(f"Chromium launch failed: {str(e)}, trying Firefox...")
+            logging.warning(f"Chromium with explicit path failed: {str(e)}, trying default chromium...")
             try:
-                # Fallback to Firefox
-                self.browser = await playwright.firefox.launch(
+                # Try default chromium
+                self.browser = await playwright.chromium.launch(
                     headless=True,
-                    args=['--no-sandbox']
+                    args=[
+                        '--no-sandbox',
+                        '--disable-bounding-box-limits',
+                        '--disable-dev-shm-usage',
+                        '--disable-web-security',
+                        '--disable-features=VizDisplayCompositor',
+                        '--disable-gpu'
+                    ]
                 )
             except Exception as e2:
-                logging.error(f"Firefox launch failed: {str(e2)}")
-                raise Exception(f"Failed to launch browser. Chromium error: {str(e)}, Firefox error: {str(e2)}")
+                logging.warning(f"Default chromium failed: {str(e2)}, trying Firefox...")
+                try:
+                    # Fallback to Firefox
+                    self.browser = await playwright.firefox.launch(
+                        headless=True,
+                        args=['--no-sandbox']
+                    )
+                except Exception as e3:
+                    logging.error(f"All browsers failed. Chromium: {str(e)}, Default: {str(e2)}, Firefox: {str(e3)}")
+                    raise Exception(f"Failed to launch any browser. Try installing browsers with: playwright install")
         
         # Create context with realistic user agent
         self.context = await self.browser.new_context(
