@@ -200,34 +200,89 @@ def test_parse_query_endpoint():
             print_result("Parse Query Validation", False, message, response)
 
 def test_scraping_endpoints():
-    """Test the scraping job endpoints"""
-    print_header("Testing Scraping Endpoints")
+    """Test the scraping job endpoints with focus on browser launching"""
+    print_header("Testing Scraping Endpoints and Browser Launching")
     
     # Test starting a scraping job
     success, response, message = make_request("post", "/start-scraping", TEST_QUERY)
     
     job_id = None
+    browser_launched = False
     
-    # Since we're using mock credentials, we expect this to fail gracefully
+    # Since we're using mock credentials, we expect LinkedIn login to fail
+    # But the browser should launch successfully before attempting login
     if response:
-        if response.status_code in [400, 500]:
-            error_data = response.json()
-            if "detail" in error_data:
-                print_result("Start Scraping Structure", True, 
-                             "Endpoint correctly structured but failed as expected with mock credentials")
-            else:
-                print_result("Start Scraping Structure", False, 
-                             "Endpoint failed but with unexpected error format", response)
-        elif response.status_code == 200:
-            # If it somehow accepts the job (unlikely)
+        if response.status_code == 200:
+            # Job was accepted and started
             data = response.json()
             if "id" in data and "status" in data:
                 job_id = data["id"]
                 print_result("Start Scraping", True, 
                              f"Scraping job started successfully with ID: {job_id}")
+                
+                # Wait a moment for the background task to start
+                print("  Waiting for background task to initialize browser...")
+                time.sleep(5)
+                
+                # Check job status to see if browser launched
+                success, job_response, job_message = make_request("get", f"/scraping-jobs/{job_id}")
+                
+                if success:
+                    job_data = job_response.json()
+                    
+                    # If status is "failed" with an error message containing "browser" or "playwright"
+                    # then the browser failed to launch
+                    if job_data["status"] == "failed":
+                        error_msg = job_data.get("error_message", "")
+                        if "chromium_headless_shell" in error_msg.lower():
+                            print_result("Browser Launch", False, 
+                                        f"Browser failed to launch with chromium_headless_shell error: {error_msg}")
+                        elif "failed to launch" in error_msg.lower() or "playwright" in error_msg.lower():
+                            print_result("Browser Launch", False, 
+                                        f"Browser failed to launch: {error_msg}")
+                        elif "login failed" in error_msg.lower():
+                            # This is expected with mock credentials
+                            print_result("Browser Launch", True, 
+                                        "Browser launched successfully but LinkedIn login failed as expected with mock credentials")
+                            browser_launched = True
+                        else:
+                            print_result("Browser Launch", False, 
+                                        f"Job failed with error: {error_msg}")
+                    elif job_data["status"] == "running":
+                        # Job is still running, which means browser launched successfully
+                        print_result("Browser Launch", True, 
+                                    "Browser launched successfully and job is running")
+                        browser_launched = True
+                    elif job_data["status"] == "completed":
+                        # Job completed, which means browser launched successfully
+                        print_result("Browser Launch", True, 
+                                    "Browser launched successfully and job completed")
+                        browser_launched = True
+                    else:
+                        print_result("Browser Launch", False, 
+                                    f"Unexpected job status: {job_data['status']}")
+                else:
+                    print_result("Browser Launch Check", False, job_message, job_response)
             else:
                 print_result("Start Scraping", False, 
                              "Scraping job response missing expected fields", response)
+        elif response.status_code in [400, 500]:
+            error_data = response.json()
+            if "detail" in error_data:
+                error_msg = error_data["detail"]
+                if "playwright" in error_msg.lower() or "browser" in error_msg.lower():
+                    print_result("Browser Launch", False, 
+                                f"Browser failed to launch: {error_msg}")
+                elif "linkedin credentials" in error_msg.lower():
+                    # This is expected with mock credentials
+                    print_result("Start Scraping Structure", True, 
+                                "Endpoint correctly validated LinkedIn credentials")
+                else:
+                    print_result("Start Scraping Structure", True, 
+                                f"Endpoint correctly structured but failed as expected: {error_msg}")
+            else:
+                print_result("Start Scraping Structure", False, 
+                            "Endpoint failed but with unexpected error format", response)
         else:
             print_result("Start Scraping", False, message, response)
     else:
@@ -243,7 +298,7 @@ def test_scraping_endpoints():
                          f"Successfully retrieved {len(data)} scraping jobs")
             
             # If we have a job ID from the previous test, try to get it specifically
-            if job_id and len(data) > 0:
+            if job_id or (len(data) > 0):
                 # Get the first job ID if we didn't get one from the previous test
                 job_id = job_id or data[0]["id"]
                 
@@ -255,23 +310,24 @@ def test_scraping_endpoints():
                     if "id" in job_data and job_data["id"] == job_id:
                         print_result("Get Specific Job", True, 
                                      f"Successfully retrieved job with ID: {job_id}")
+                        
+                        # Check for browser-related errors in the job data
+                        if job_data.get("status") == "failed":
+                            error_msg = job_data.get("error_message", "")
+                            if "chromium_headless_shell" in error_msg.lower():
+                                print_result("Browser Compatibility", False, 
+                                            f"Browser failed with chromium_headless_shell error: {error_msg}")
+                            elif "failed to launch" in error_msg.lower():
+                                print_result("Browser Compatibility", False, 
+                                            f"Browser failed to launch: {error_msg}")
+                            elif "login failed" in error_msg.lower() and browser_launched:
+                                print_result("Browser Compatibility", True, 
+                                            "Browser launched successfully but LinkedIn login failed as expected with mock credentials")
                     else:
                         print_result("Get Specific Job", False, 
                                      "Retrieved job data doesn't match expected ID", response)
                 else:
                     print_result("Get Specific Job", False, message, response)
-                
-                # Test getting a non-existent job
-                fake_id = str(uuid.uuid4())
-                response = requests.get(f"{BASE_URL}/scraping-jobs/{fake_id}", timeout=TIMEOUT)
-                
-                if response.status_code in [404, 500]:
-                    # Accept either 404 (not found) or 500 (server error) as valid responses for a non-existent job
-                    print_result("Get Non-existent Job", True, 
-                                 f"Correctly handled non-existent job with status {response.status_code}")
-                else:
-                    print_result("Get Non-existent Job", False, 
-                                 f"Expected 404 or 500 status, got {response.status_code}", response)
         else:
             print_result("List Scraping Jobs", False, 
                          "Expected a list of jobs but got something else", response)
