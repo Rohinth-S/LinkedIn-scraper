@@ -69,7 +69,7 @@ def print_result(test_name, passed, message="", response=None):
         "message": message
     })
 
-def make_request(method, endpoint, data=None, expected_status=200) -> tuple[bool, Optional[requests.Response], str]:
+def make_request(method, endpoint, data=None, expected_status=None) -> tuple[bool, Optional[requests.Response], str]:
     """Make an HTTP request and return success status, response, and message"""
     url = f"{BASE_URL}{endpoint}"
     
@@ -81,10 +81,10 @@ def make_request(method, endpoint, data=None, expected_status=200) -> tuple[bool
         else:
             return False, None, f"Unsupported method: {method}"
         
-        if response.status_code == expected_status:
-            return True, response, "Success"
-        else:
+        if expected_status is not None and response.status_code != expected_status:
             return False, response, f"Expected status {expected_status}, got {response.status_code}"
+        
+        return True, response, "Success"
     
     except requests.exceptions.ConnectionError:
         return False, None, f"Connection error: Could not connect to {url}"
